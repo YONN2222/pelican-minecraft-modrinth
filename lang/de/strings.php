@@ -39,12 +39,21 @@ return [
     ],
 
     'actions' => [
+        'scan' => 'Mods scannen',
+        'rescan_mods_for_updates' => 'Mods auf Updates erneut scannen',
+        'rescan_plugins_for_updates' => 'Plugins auf Updates erneut scannen',
+        'update_all_mods' => 'Alle Mods aktualisieren',
+        'update_all_plugins' => 'Alle Plugins aktualisieren',
         'install_latest' => 'Neueste Version installieren',
         'install' => 'Installieren',
         'installed' => 'Installiert',
         'update' => 'Aktualisieren',
         'uninstall' => 'Deinstallieren',
         'versions' => 'Versionsauswahl',
+    ],
+
+    'badges' => [
+        'not_on_modrinth' => 'Nicht auf Modrinth',
     ],
 
     'modals' => [
@@ -67,5 +76,12 @@ return [
         'uninstall_success_body' => ':name erfolgreich deinstalliert',
         'uninstall_failed' => 'Deinstallation fehlgeschlagen',
         'uninstall_failed_body' => 'Bei der Deinstallation ist ein Fehler aufgetreten. Bitte versuche es erneut oder wende dich an den Support, wenn das Problem weiterhin besteht.',
+        'scan_in_progress_mods' => 'Mods werden gescannt... bitte kurz warten.',
+        'scan_in_progress_plugins' => 'Plugins werden gescannt... bitte kurz warten.',
+        'scan_success' => ':count Mod(s) beim Scan importiert.',
+        'scan_failed' => 'Scan fehlgeschlagen — Modrinth nicht erreichbar.',
+        'bulk_update_success' => ':count Element(e) aktualisiert.',
+        'bulk_update_partial' => ':updated aktualisiert, :failed fehlgeschlagen.',
+        'bulk_update_none' => 'Alle Elemente sind bereits aktuell.',
     ],
 ];

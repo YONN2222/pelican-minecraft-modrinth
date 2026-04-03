@@ -17,7 +17,7 @@ class MinecraftModrinthService
         $version = $server->variables()->where(fn ($builder) => $builder->where('env_variable', 'MINECRAFT_VERSION')->orWhere('env_variable', 'MC_VERSION'))->first()?->server_value;
 
         if (!$version || $version === 'latest') {
-            return config('minecraft-modrinth.latest_minecraft_version');
+            return config('pelican-minecraft-modrinth.latest_minecraft_version');
         }
 
         return $version;
@@ -151,7 +151,7 @@ class MinecraftModrinthService
                     'project_id' => $installedMod['project_id'],
                     'slug' => $installedMod['project_slug'],
                     'title' => $installedMod['project_title'],
-                    'description' => trans('minecraft-modrinth::strings.page.mod_unavailable'),
+                    'description' => trans('pelican-minecraft-modrinth::strings.page.mod_unavailable'),
                     'icon_url' => null,
                     'author' => $installedMod['author'] ?? '',
                     'downloads' => 0,
@@ -203,6 +203,317 @@ class MinecraftModrinthService
                 return [];
             }
         });
+    }
+
+    /**
+     * @param  array<string, string>  $hashMap  [filename => sha512hash]
+     * @return array<string, mixed>  [sha512hash => versionData]
+     */
+    public function lookupVersionsByHashes(array $hashMap): array
+    {
+        if (empty($hashMap)) {
+            return [];
+        }
+
+        $hashes = array_values($hashMap);
+
+        try {
+            $result = Http::asJson()
+                ->timeout(10)
+                ->connectTimeout(5)
+                ->throw()
+                ->post('https://api.modrinth.com/v2/version_files', [
+                    'hashes' => $hashes,
+                    'algorithm' => 'sha512',
+                ])
+                ->json();
+
+            return is_array($result) ? $result : [];
+        } catch (Exception $exception) {
+            report($exception);
+
+            return [];
+        }
+    }
+
+    /**
+     * @param  array<string>  $projectIds
+     * @return array<string, mixed>  [projectId => projectData]
+     *
+     * @throws Exception
+     */
+    protected function fetchProjectsByIds(array $projectIds): array
+    {
+        if (empty($projectIds)) {
+            return [];
+        }
+
+        $projectIds = array_values(array_unique($projectIds));
+        $idsParam = '["' . implode('","', $projectIds) . '"]';
+
+        try {
+            $projects = Http::asJson()
+                ->timeout(10)
+                ->connectTimeout(5)
+                ->throw()
+                ->get('https://api.modrinth.com/v2/projects', [
+                    'ids' => $idsParam,
+                ])
+                ->json();
+
+            if (!is_array($projects)) {
+                return [];
+            }
+
+            $map = [];
+            foreach ($projects as $project) {
+                if (isset($project['id'])) {
+                    $map[$project['id']] = $project;
+                }
+            }
+
+            return $map;
+        } catch (Exception $exception) {
+            report($exception);
+
+            throw new Exception('Modrinth projects lookup failed', previous: $exception);
+        }
+    }
+
+    protected function resolveProjectAuthor(?array $project, array $versionData): ?string
+    {
+        if (is_string($project['author'] ?? null) && $project['author'] !== '') {
+            return $project['author'];
+        }
+
+        if (is_string($project['team'] ?? null) && $project['team'] !== '') {
+            $teamUsername = $this->fetchTeamPrimaryUsername($project['team']);
+            if ($teamUsername !== null) {
+                return $teamUsername;
+            }
+        }
+
+        if (is_string($versionData['author_id'] ?? null) && $versionData['author_id'] !== '') {
+            return $this->fetchUsernameByUserId($versionData['author_id']);
+        }
+
+        return null;
+    }
+
+    protected function fetchTeamPrimaryUsername(string $teamId): ?string
+    {
+        $cacheKey = 'modrinth_team_primary_user:' . $teamId;
+
+        return cache()->remember($cacheKey, now()->addMinutes(30), function () use ($teamId) {
+            try {
+                $members = Http::asJson()
+                    ->timeout(10)
+                    ->connectTimeout(5)
+                    ->throw()
+                    ->get("https://api.modrinth.com/v2/team/{$teamId}/members")
+                    ->json();
+
+                if (!is_array($members) || empty($members)) {
+                    return null;
+                }
+
+                foreach ($members as $member) {
+                    $username = $member['user']['username'] ?? null;
+                    if (is_string($username) && $username !== '') {
+                        return $username;
+                    }
+                }
+
+                return null;
+            } catch (Exception $exception) {
+                report($exception);
+
+                return null;
+            }
+        });
+    }
+
+    protected function fetchUsernameByUserId(string $userId): ?string
+    {
+        $cacheKey = 'modrinth_user_username:' . $userId;
+
+        return cache()->remember($cacheKey, now()->addMinutes(30), function () use ($userId) {
+            try {
+                $user = Http::asJson()
+                    ->timeout(10)
+                    ->connectTimeout(5)
+                    ->throw()
+                    ->get("https://api.modrinth.com/v2/user/{$userId}")
+                    ->json();
+
+                $username = $user['username'] ?? null;
+
+                return is_string($username) && $username !== '' ? $username : null;
+            } catch (Exception $exception) {
+                report($exception);
+
+                return null;
+            }
+        });
+    }
+
+    /**
+     * Scans the mods/plugins folder, hashes unknown JARs, looks them up on Modrinth,
+     * imports matches into metadata, and returns filenames not found on Modrinth.
+     *
+     * @return array<string>  Filenames with no Modrinth match
+     *
+     * @throws Exception
+     */
+    public function scanAndImportMods(Server $server, DaemonFileRepository $fileRepository): array
+    {
+        $cacheKey = "modrinth_hash_scan:{$server->id}";
+
+        return cache()->remember($cacheKey, now()->addMinutes(10), function () use ($server, $fileRepository) {
+            return $this->performScan($server, $fileRepository);
+        });
+    }
+
+    /**
+     * @return array<string>  Filenames with no Modrinth match
+     *
+     * @throws Exception
+     */
+    protected function performScan(Server $server, DaemonFileRepository $fileRepository): array
+    {
+        $type = ModrinthProjectType::fromServer($server);
+
+        if (!$type) {
+            return [];
+        }
+
+        try {
+            $directoryContents = $fileRepository->setServer($server)->getDirectory($type->getFolder());
+        } catch (Exception $exception) {
+            report($exception);
+
+            return [];
+        }
+
+        if (!is_array($directoryContents) || isset($directoryContents['error'])) {
+            return [];
+        }
+
+        $jarFiles = collect($directoryContents)
+            ->filter(fn ($item) => is_array($item) && isset($item['name']) && str($item['name'])->lower()->endsWith('.jar'))
+            ->pluck('name')
+            ->values()
+            ->toArray();
+
+        if (empty($jarFiles)) {
+            return [];
+        }
+
+        $installedModsMetadata = $this->getInstalledModsMetadata($server, $fileRepository);
+        $knownFilenames = [];
+        foreach ($installedModsMetadata as $installedMod) {
+            $knownFilenames[strtolower($installedMod['filename'])] = true;
+        }
+
+        $unknownFiles = array_values(
+            array_filter($jarFiles, function ($name) use ($knownFilenames) {
+                $normalizedName = strtolower($name);
+
+                return !isset($knownFilenames[$normalizedName]);
+            })
+        );
+
+        if (empty($unknownFiles)) {
+            return [];
+        }
+
+        $folder = $type->getFolder();
+        $hashMap = []; // [filename => sha512hash]
+
+        foreach ($unknownFiles as $filename) {
+            try {
+                $content = $fileRepository->setServer($server)->getContent("{$folder}/{$filename}");
+                $hashMap[$filename] = hash('sha512', $content);
+            } catch (Exception $exception) {
+                report($exception);
+            }
+        }
+
+        if (empty($hashMap)) {
+            return $unknownFiles;
+        }
+
+        $versionsByHash = $this->lookupVersionsByHashes($hashMap);
+
+        if (empty($versionsByHash)) {
+            return $unknownFiles;
+        }
+
+        $hashToFilenames = [];
+        foreach ($hashMap as $filename => $hash) {
+            if (!isset($hashToFilenames[$hash])) {
+                $hashToFilenames[$hash] = [];
+            }
+
+            $hashToFilenames[$hash][] = $filename;
+        }
+
+        $matchedVersions = []; // [filename => versionData]
+        $projectIds = [];
+
+        foreach ($versionsByHash as $hash => $versionData) {
+            if (!isset($hashToFilenames[$hash]) || !is_array($versionData) || !isset($versionData['project_id'])) {
+                continue;
+            }
+
+            foreach ($hashToFilenames[$hash] as $filename) {
+                $matchedVersions[$filename] = $versionData;
+            }
+
+            $projectIds[] = $versionData['project_id'];
+        }
+
+        if (empty($matchedVersions)) {
+            return $unknownFiles;
+        }
+
+        try {
+            $projectsMap = $this->fetchProjectsByIds(array_unique($projectIds));
+        } catch (Exception $exception) {
+            report($exception);
+            $projectsMap = [];
+        }
+
+        $matchedFilenames = [];
+
+        foreach ($matchedVersions as $filename => $versionData) {
+            if (!isset($versionData['project_id'], $versionData['id'], $versionData['version_number'])) {
+                continue;
+            }
+
+            $projectId = $versionData['project_id'];
+            $project = $projectsMap[$projectId] ?? null;
+
+            $saved = $this->saveModMetadata(
+                server: $server,
+                fileRepository: $fileRepository,
+                projectId: $projectId,
+                projectSlug: $project['slug'] ?? $projectId,
+                projectTitle: $project['title'] ?? $projectId,
+                versionId: $versionData['id'],
+                versionNumber: $versionData['version_number'],
+                filename: $filename,
+                author: $this->resolveProjectAuthor($project, $versionData)
+            );
+
+            if ($saved) {
+                $matchedFilenames[] = $filename;
+            }
+        }
+
+        return array_values(
+            array_filter($unknownFiles, fn ($name) => !in_array($name, $matchedFilenames, true))
+        );
     }
 
     /**
@@ -279,7 +590,7 @@ class MinecraftModrinthService
                 ];
 
                 $metadata['installed_mods'] = collect($metadata['installed_mods'])
-                    ->filter(fn ($mod) => $mod['project_id'] !== $projectId)
+                    ->filter(fn ($mod) => $mod['project_id'] !== $projectId && strtolower($mod['filename']) !== strtolower($filename))
                     ->values()
                     ->toArray();
 

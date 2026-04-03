@@ -13,8 +13,8 @@ enum ModrinthProjectType: string implements HasLabel
     public function getLabel(): string
     {
         return match ($this) {
-            self::Mod => trans('minecraft-modrinth::strings.minecraft_mods'),
-            self::Plugin => trans('minecraft-modrinth::strings.minecraft_plugins'),
+            self::Mod => trans('pelican-minecraft-modrinth::strings.minecraft_mods'),
+            self::Plugin => trans('pelican-minecraft-modrinth::strings.minecraft_plugins'),
         };
     }
 

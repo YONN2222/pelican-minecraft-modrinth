@@ -1,8 +1,8 @@
 {
-    "id": "minecraft-modrinth",
+    "id": "pelican-minecraft-modrinth",
     "name": "Minecraft Modrinth",
-    "author": "Boy132",
-    "version": "1.0.0",
+    "author": "Boy132 & H1ghSyst3m & Yonn",
+    "version": "1.1.0",
     "description": "Easily download, update, and manage minecraft mods & plugins from modrinth",
     "category": "plugin",
     "url": "https://github.com/pelican-dev/plugins/tree/main/minecraft-modrinth",

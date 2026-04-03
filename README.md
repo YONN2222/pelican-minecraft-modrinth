@@ -1,41 +1,50 @@
-# Minecraft Modrinth (by Boy132)
+# Minecraft Modrinth
 
-Easily download, update, and manage Minecraft mods and plugins directly from Modrinth within the server panel.
+A plugin for [Pelican Panel](https://pelican.dev) that lets you search, install, update, and manage Minecraft mods/plugins from [Modrinth](https://modrinth.com) directly in the server panel.
 
-## Setup
-
-Add `modrinth_mods` or `modrinth_plugins` to the _features_ of your egg to enable the mod/plugins page.
-Also make sure your egg has the `minecraft` _tag_ and a _tag_ for the [mod loader](https://github.com/pelican-dev/plugins/blob/main/minecraft-modrinth/src/Enums/MinecraftLoader.php#L10-L16). (e.g. `paper` or `neoforge`)
+> This repository is a **fork** of
+> [H1ghSyst3m/plugins](https://github.com/H1ghSyst3m/plugins/tree/featcomplete-mod-plugin-management).
 
 ## Features
 
-- **Browse and Search**: Access Modrinth's extensive mod library with search and pagination
-- **Smart Installation**: One-click install with automatic latest version selection
-- **Status Tracking**: See which mods are installed directly in the Modrinth list
-- **Update Detection**: Automatic detection of available updates with one-click upgrade
-- **Easy Uninstall**: Remove mods/plugins with confirmation and automatic file cleanup
-- **Metadata Management**: Tracks installed versions, filenames, and installation dates
-- **Version Compatibility**: Automatic filtering by Minecraft version and mod loader
-- **Seamless Installation**: Downloads to the correct server directory (mods/ or plugins/)
-- **Multilingual**: Supports English and German translations
+- Browse and search Modrinth projects from inside the server panel
+- Install compatible mod/plugin versions with one click
+- Track installed files via `.modrinth-metadata.json`
+- Detect available updates for installed entries
+- Uninstall installed entries directly from the panel
+- **Fork-specific additions:**
+  - Scan existing `.jar` files and import found matches into metadata
+  - Show "Not on Modrinth" state for unknown files
+  - Rescan actions for mods/plugins update checks
+  - Bulk update action for all updatable mods/plugins
+  - Extended German/English notification and action texts
 
-## How It Works
+## Setup
 
-### Installing Mods/Plugins
-1. Browse or search for mods in the Modrinth list
-2. Click the **Install** button (download icon)
-3. The latest compatible version is automatically downloaded and tracked
+Add `modrinth_mods` or `modrinth_plugins` to your egg **features**.
+Also ensure the egg has the `minecraft` tag and a matching loader tag (for example `paper`, `fabric`, `forge`, or `neoforge`).
 
-### Managing Installed Mods
-- **Installed** (green check): Mod is installed and up-to-date
-- **Update** (orange refresh): Newer version available - click to upgrade
-- **Uninstall** (red trash): Remove mod from server
+## Installation
 
-### Metadata Tracking
-The plugin maintains a `.modrinth-metadata.json` file in your mods/plugins folder that tracks:
-- Project ID and name
-- Installed version ID and number
-- Filename
-- Installation date
+### Option 1: Direct URL
 
-This enables accurate update detection and prevents duplicate installations
+Use this URL in the Pelican Panel plugin installer (after releases are published):
+
+```txt
+https://github.com/YONN2222/pelican-minecraft-modrinth/releases/latest/download/pelican-minecraft-modrinth.zip
+```
+
+### Option 2: Upload ZIP
+
+1. Go to the [Releases](https://github.com/YONN2222/pelican-minecraft-modrinth/releases) page
+2. Download the latest plugin ZIP
+3. Open the Pelican Panel plugin installer
+4. Upload the ZIP file
+
+## Repository
+
+https://github.com/YONN2222/pelican-minecraft-modrinth
+
+## License
+
+GNU General Public License v3.0 (GPL-3.0)

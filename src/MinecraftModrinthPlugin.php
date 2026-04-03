@@ -15,7 +15,7 @@ class MinecraftModrinthPlugin implements HasPluginSettings, Plugin
 
     public function getId(): string
     {
-        return 'minecraft-modrinth';
+        return 'pelican-minecraft-modrinth';
     }
 
     public function register(Panel $panel): void
@@ -31,9 +31,9 @@ class MinecraftModrinthPlugin implements HasPluginSettings, Plugin
     {
         return [
             TextInput::make('latest_minecraft_version')
-                ->label(trans('minecraft-modrinth::strings.settings.latest_minecraft_version'))
+                ->label(trans('pelican-minecraft-modrinth::strings.settings.latest_minecraft_version'))
                 ->required()
-                ->default(fn () => config('minecraft-modrinth.latest_minecraft_version', '1.21.11')),
+                ->default(fn () => config('pelican-minecraft-modrinth.latest_minecraft_version', '1.21.11')),
         ];
     }
 
@@ -44,7 +44,7 @@ class MinecraftModrinthPlugin implements HasPluginSettings, Plugin
         ]);
 
         Notification::make()
-            ->title(trans('minecraft-modrinth::strings.settings.settings_saved'))
+            ->title(trans('pelican-minecraft-modrinth::strings.settings.settings_saved'))
             ->success()
             ->send();
     }
